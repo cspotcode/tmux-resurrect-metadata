@@ -42,7 +42,7 @@ restore_metadata() {
   local _ key value
   awk 'BEGIN { FS="\t"; OFS="\t" } $1 == "metadata"' "$(last_resurrect_file)" |
   while read -r _ key value; do
-    tmux set-option "$key" "$( echo -e -n "$value" )"
+    tmux set-option "$key" "$( eval "echo -e -n $value" )"
     # tmux send-keys -t "${session_name}:${window_number}.${pane_index}" -l "$(printf " %q" workon "$venv")"
     # tmux send-keys -t "${session_name}:${window_number}.${pane_index}" "C-m"
   done
@@ -105,10 +105,10 @@ main() {
       fi
       ;;
     save)
-      dump-metadata >> "$2"
+      dump_metadata >> "$2"
       ;;
     restore)
-      restore-metadata
+      restore_metadata
       ;;
   esac
 }
