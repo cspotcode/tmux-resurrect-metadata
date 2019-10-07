@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# Define it to empty
-d=$'\t'
-
 # pane_format() {
 #   local format
 #   format+="#{session_name}"
