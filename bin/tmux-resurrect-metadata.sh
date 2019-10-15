@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 d=$'\t'
 
 pane_format() {
@@ -24,11 +23,7 @@ get_window_ids() {
 }
 
 get_panes() {
-  while IFS= read -r window_id
-  do
-    tmux list-panes -t "$window_id" -F "$(pane_format)"
-  done < <(get_window_ids)
-
+  tmux list-panes -a -F "$(pane_format)"
 }
 
 dump_metadata() {
@@ -76,20 +71,7 @@ restore_metadata() {
 }
 
 install() {
-  # [[ -n "${VIRTUALENVWRAPPER_HOOK_DIR}" ]] || {
-  #   echo >&2 "virtualenvwrapper environment variables not found!"
-  #   exit 1
-  # }
-
   CURRENT_DIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-  # hook="${VIRTUALENVWRAPPER_HOOK_DIR}/predeactivate"
-  # cmd="tmux-virtualenv.sh deactivate-venv"
-  # _add_line_to_file "tmux-virtualenv.sh" "$CURRENT_DIR/$cmd" "$hook"
-
-  # hook="${VIRTUALENVWRAPPER_HOOK_DIR}/preactivate"
-  # cmd="tmux-virtualenv.sh activate-venv"
-  # _add_line_to_file "tmux-virtualenv.sh" "$CURRENT_DIR/$cmd \"\$1\"" "$hook"
-
   tmux set-option -gq "@resurrect-hook-post-save-layout" "$CURRENT_DIR/tmux-resurrect-metadata.sh save"
   tmux set-option -gq "@resurrect-hook-pre-restore-history" "$CURRENT_DIR/tmux-resurrect-metadata.sh restore"
 }
@@ -108,13 +90,14 @@ _add_line_to_file() {
 
 
 main() {
-  # local path
-  # path=$(dirname "$(tmux show-option -gv "@resurrect-restore-script-path")")
-  # source "$path/variables.sh"
-  # source "$path/helpers.sh"
+  local path
+  path=$(dirname "$(tmux show-option -gv "@resurrect-restore-script-path")")
+  source "$path/variables.sh"
+  source "$path/helpers.sh"
 
   # set after we have sourced the helpers from tmux-resurrect
   set -eu -o pipefail
+  shopt -s inherit_errexit
 
   case "$1" in
     install)
