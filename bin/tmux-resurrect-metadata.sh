@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
 
-# pane_format() {
-#   local format
-#   format+="#{session_name}"
-#   format+="${d}"
-#   format+="#{window_index}"
-#   format+="${d}"
-#   format+="#{pane_index}"
-#   format+="${d}"
-#   format+="#{pane_id}"
-#   echo "$format"
-# }
+d=$'\t'
+
+pane_format() {
+  local format
+  format+="#{session_name}"
+  format+="${d}"
+  format+="#{window_index}"
+  format+="${d}"
+  format+="#{pane_index}"
+  format+="${d}"
+  format+="#{pane_id}"
+  echo "$format"
+}
 
 # pane_virtualenv() {
 #   local pane_id="$1"
 #   tmux show-window-option -v -t "$pane_id" "@virtualenv$pane_id" 2>/dev/null || true
 # }
 
+get_window_ids() {
+  tmux list-windows -F '#{window_id}'
+}
+
+get_panes() {
+  while IFS= read -r window_id
+  do
+    tmux list-panes -t "$window_id" -F "$(pane_format)"
+  done < <(get_window_ids)
+
+}
 
 dump_metadata() {
   # local session_name window_number pane_index pane_id
@@ -34,17 +47,31 @@ dump_metadata() {
   #   fi
   # done
 
-  tmux show-options |
-  awk -F' ' '{ st = index($0," "); if ($1 ~ "@resurrect-metadata-" ) print "metadata" "\t" $1 "\t" substr($0,st+1)}'
+  # dump global options
+  tmux show-options -g |
+  awk -F' ' '{ st = index($0," "); if ($1 ~ "@resurrect-metadata-" ) print "metadata" "\t" "global" "\t" $1 "\t" substr($0,st+1)}'
+
+  # TODO dump window options
+
+  # dump pane options
+  local session_name window_index pane_index pane_id prefix
+  while IFS="$d" read -r session_name window_index pane_index pane_id
+  do
+    prefix="metadata${d}pane${d}$session_name${d}$window_index${d}$pane_index${d}"
+    tmux show-options -p -t "$pane_id" |
+      awk -F' ' '{ st = index($0," "); if ($1 ~ "@resurrect-metadata-" ) print "'"$prefix"'" $1 "\t" substr($0,st+1)}'
+  done < <(get_panes)
 }
 
 restore_metadata() {
-  local _ key value
-  awk 'BEGIN { FS="\t"; OFS="\t" } $1 == "metadata"' "$(last_resurrect_file)" |
-  while read -r _ key value; do
-    tmux set-option "$key" "$( eval "echo -e -n $value" )"
-    # tmux send-keys -t "${session_name}:${window_number}.${pane_index}" -l "$(printf " %q" workon "$venv")"
-    # tmux send-keys -t "${session_name}:${window_number}.${pane_index}" "C-m"
+  local _1 _2 session_name window_index pane_index key value
+  awk 'BEGIN { FS="\t"; OFS="\t" } $1 == "metadata" && $2 == "pane"' "$(last_resurrect_file)" |
+  while read -r _1 _2 session_name window_index pane_index key value; do
+    tmux set-option -p -t "$session_name:$window_index.$pane_index" "$key" "$( eval "echo -e -n $value" )"
+  done
+  awk 'BEGIN { FS="\t"; OFS="\t" } $1 == "metadata" && $2 == "global"' "$(last_resurrect_file)" |
+  while read -r _1 _2 key value; do
+    tmux set-option -g "$key" "$( eval "echo -e -n $value" )"
   done
 }
 
@@ -81,10 +108,10 @@ _add_line_to_file() {
 
 
 main() {
-  local path
-  path=$(dirname "$(tmux show-option -gv "@resurrect-restore-script-path")")
-  source "$path/variables.sh"
-  source "$path/helpers.sh"
+  # local path
+  # path=$(dirname "$(tmux show-option -gv "@resurrect-restore-script-path")")
+  # source "$path/variables.sh"
+  # source "$path/helpers.sh"
 
   # set after we have sourced the helpers from tmux-resurrect
   set -eu -o pipefail
@@ -93,17 +120,17 @@ main() {
     install)
       install
       ;;
-    set-meta)
-      # Are we currently inside a tmux session
-      if [ -n "${TMUX_PANE-}" ]; then
-        tmux set-option "@resurrect-metadata-${TMUX_PANE}-$2" "$3"
-      fi
-      ;;
-    remove-meta)
-      if [ -n "${TMUX_PANE-}" ]; then
-        tmux set-option -u "@resurrect-metadata-${TMUX_PANE}-$2"
-      fi
-      ;;
+    # set-meta)
+    #   # Are we currently inside a tmux session
+    #   if [ -n "${TMUX_PANE-}" ]; then
+    #     tmux set-option "@resurrect-metadata-${TMUX_PANE}-$2" "$3"
+    #   fi
+    #   ;;
+    # remove-meta)
+    #   if [ -n "${TMUX_PANE-}" ]; then
+    #     tmux set-option -u "@resurrect-metadata-${TMUX_PANE}-$2"
+    #   fi
+    #   ;;
     save)
       dump_metadata >> "$2"
       ;;
